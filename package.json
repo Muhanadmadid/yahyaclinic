@@ -1,0 +1,29 @@
+{
+  "name": "easyclinic",
+  "version": "1.0.0",
+  "description": "EasyClinic — نظام إدارة عيادة الأسنان",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.easyclinic.app",
+    "productName": "EasyClinic",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico"
+    },
+    "files": [
+      "main.js",
+      "app/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
