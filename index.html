@@ -286,6 +286,8 @@ html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg);color:va
 #app.force-mobile .nav svg{ width: 26px !important; height: 26px !important; }
 #app.force-mobile .nav span{ font-size: 9px !important; margin-top: 2px !important; }
 #app.force-mobile .main{ order: 1 !important; flex: 1 !important; min-height: 0 !important; }
+#app.force-mobile .mob-profile-nav{ display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; min-width: 72px !important; flex: 1 !important; padding: 8px 4px !important; cursor: pointer !important; border-right: 1px solid rgba(0,0,0,.2) !important; background: var(--teal2) !important; height: 100% !important; }
+#app.force-mobile .mob-top-btns{ display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 6px !important; flex-shrink: 0 !important; padding: 0 10px !important; border-left: 1px solid rgba(255,255,255,.1) !important; height: 100% !important; position: sticky !important; right: 0 !important; z-index: 2 !important; background: var(--sb) !important; order: 999 !important; }
 #app.force-mobile .fab-wrap{ bottom: 76px !important; }
 #app.force-mobile .content{ padding: 8px !important; }
 #app.force-mobile .md-box{
@@ -340,15 +342,19 @@ html,body{height:100%;font-family:Arial,sans-serif;background:var(--bg);color:va
   /* إظهار أزرار التحكم في الموبايل */
   .mob-top-btns{
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 4px !important;
-    min-width: 58px !important;
+    gap: 6px !important;
     flex-shrink: 0 !important;
-    padding: 6px 4px !important;
-    border-right: 1px solid rgba(0,0,0,.2) !important;
+    padding: 0 10px !important;
+    border-left: 1px solid rgba(255,255,255,.1) !important;
     height: 100% !important;
+    position: sticky !important;
+    right: 0 !important;
+    z-index: 2 !important;
+    background: var(--sb) !important;
+    order: 999 !important;
   }
 
   /* بروفايل الموبايل */
