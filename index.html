@@ -1887,6 +1887,7 @@ function listenToFirebaseChanges() {
         } else {
           PTS.push(cp);
         }
+        try{_fbLastHash.set('p:'+cp.id, _docHash(cp));}catch(e){}
         changed = true;
       });
 
@@ -1914,6 +1915,7 @@ function listenToFirebaseChanges() {
         if(data && data.appts){
           const key = doc.id;
           xA[key] = data.appts; // قبول كل بيانات السحابة مباشرة
+          try{_fbLastHash.set('a:'+key, _docHash(data.appts));}catch(e){}
           changed = true;
         }
       });
@@ -1927,8 +1929,8 @@ function listenToFirebaseChanges() {
 async function syncToFirebase() {
   if (!dbFS) { alert('Firebase غير متصل'); return; }
   try {
-    await fbPushNow();
-    alert('✓ تمت المزامنة بنجاح — ' + PTS.length + ' سجل');
+    await fbPushNow(0, true); // رفع كامل قسري
+    alert('✓ تمت المزامنة الكاملة — ' + PTS.length + ' سجل');
   } catch(e) {
     alert('خطأ في المزامنة: ' + e.message);
   }
@@ -6354,27 +6356,50 @@ function saveAllToDB(){
   }
 }
 
-async function fbPushNow(now){
-  const ts = now || Date.now();
+// ===== الرفع التفاضلي — يرفع المستندات المتغيّرة فقط (توفير حصة Firebase) =====
+const _fbLastHash = new Map(); // بصمة آخر نسخة مرفوعة لكل مستند
+function _docHash(obj){
+  // بصمة سريعة تتجاهل _ts حتى لا تتغير مع كل دفعة
+  const s = JSON.stringify(obj, (k,v)=>k==='_ts'?undefined:v);
+  let h = 5381;
+  for(let i=0;i<s.length;i+=17){ h = ((h<<5)+h+s.charCodeAt(i))|0; }
+  return s.length+':'+h;
+}
+async function fbPushNow(now, force){
+  const ts = (typeof now==='number'&&now) || Date.now();
   try{
-    // دفع مجزأ: حد Firestore 500 عملية و ~10MB لكل دفعة
     const commits=[];
     let batch=dbFS.batch(), ops=0, bytes=0;
     const flush=()=>{ if(ops){ commits.push(batch.commit()); batch=dbFS.batch(); ops=0; bytes=0; } };
-    const add=(ref,data)=>{
+    const pushed=[]; // [مفتاح البصمة, البصمة] — تُثبَّت بعد نجاح الرفع
+    const add=(ref,data,hkey,h)=>{
       const sz=JSON.stringify(data).length;
       if(ops>=400 || (bytes+sz)>8000000) flush();
       batch.set(ref,data); ops++; bytes+=sz;
+      pushed.push([hkey,h]);
     };
     const col = dbFS.collection('clinics').doc(currentUserUid).collection('patients');
-    for(const p of PTS){ p._ts = ts; add(col.doc(String(p.id)), p); }
+    for(const p of PTS){
+      const hkey='p:'+p.id;
+      const h=_docHash(p);
+      if(!force && _fbLastHash.get(hkey)===h) continue; // لم يتغيّر — لا ترفعه
+      p._ts = ts;
+      add(col.doc(String(p.id)), p, hkey, h);
+    }
     const apptCol = dbFS.collection('clinics').doc(currentUserUid).collection('appointments');
     for(const [k,v] of Object.entries(xA)){
       if(k.startsWith('_ts_')) continue;
-      add(apptCol.doc(k), {appts:v, _ts:ts});
+      const hkey='a:'+k;
+      const h=_docHash(v);
+      if(!force && _fbLastHash.get(hkey)===h) continue;
+      add(apptCol.doc(k), {appts:v, _ts:ts}, hkey, h);
     }
     flush();
-    await Promise.all(commits);
+    if(commits.length){
+      await Promise.all(commits);
+      pushed.forEach(([k,h])=>_fbLastHash.set(k,h));
+      console.log('⤴️ رفع تفاضلي:', pushed.length, 'مستند متغيّر');
+    }
     localStorage.removeItem('fb_pending_sync');
     localStorage.setItem('fb_last_sync', new Date().toLocaleString('ar-IQ'));
     updateSyncStatus('ok');
