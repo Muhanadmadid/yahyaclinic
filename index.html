@@ -7222,6 +7222,13 @@ initDB().then(()=>{
     rPts(PTS);
     updateDBFolderLabel();
     setTimeout(autoDBSaveCheck, 3000);
+    // إعادة محاولة الرفع المعلق (فشل سابق مثل Transaction too big)
+    setTimeout(()=>{
+      if(typeof dbFS!=='undefined' && dbFS && currentUserUid && localStorage.getItem('fb_pending_sync')){
+        console.log('⤴️ إعادة رفع البيانات المعلقة...');
+        fbPushNow();
+      }
+    }, 5000);
   });
 }).catch(()=>{
   rPts(PTS);
