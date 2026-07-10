@@ -1900,7 +1900,7 @@ function listenToFirebaseChanges() {
           if(updated && typeof openKs === 'function') openKs(updated);
         }
       }
-      console.log('🔄 Firebase patients synced:', cloud.length);
+      if (changed) console.log('🔄 Firebase patients synced');
     }, err => console.error('FB listen error:', err));
 
     // استماع للمواعيد — يُحدَّث الـ UI فور وصول أي تغيير
@@ -1926,14 +1926,8 @@ function listenToFirebaseChanges() {
 
 async function syncToFirebase() {
   if (!dbFS) { alert('Firebase غير متصل'); return; }
-  const col = dbFS.collection('clinics').doc(currentUserUid).collection('patients');
-  const batch = dbFS.batch();
-  PTS.forEach(p => {
-    batch.set(col.doc(String(p.id)), p);
-  });
   try {
-    await batch.commit();
-    localStorage.setItem('fb_last_sync', new Date().toLocaleString('ar-IQ'));
+    await fbPushNow();
     alert('✓ تمت المزامنة بنجاح — ' + PTS.length + ' سجل');
   } catch(e) {
     alert('خطأ في المزامنة: ' + e.message);
@@ -6360,30 +6354,35 @@ function saveAllToDB(){
   }
 }
 
-function fbPushNow(now){
+async function fbPushNow(now){
   const ts = now || Date.now();
-  const col = dbFS.collection('clinics').doc(currentUserUid).collection('patients');
-  const batch = dbFS.batch();
-  PTS.forEach(p => {
-    p._ts = ts;
-    batch.set(col.doc(String(p.id)), p);
-  });
-  const apptCol = dbFS.collection('clinics').doc(currentUserUid).collection('appointments');
-  Object.entries(xA).forEach(([k,v]) => {
-    if(k.startsWith('_ts_')) return;
-    batch.set(apptCol.doc(k), {appts:v, _ts:ts});
-  });
-  batch.commit()
-    .then(() => {
-      localStorage.removeItem('fb_pending_sync');
-      localStorage.setItem('fb_last_sync', new Date().toLocaleString('ar-IQ'));
-      updateSyncStatus('ok');
-    })
-    .catch(e => {
-      localStorage.setItem('fb_pending_sync','1');
-      updateSyncStatus('error');
-      console.warn('FB write failed:', e.message);
-    });
+  try{
+    // دفع مجزأ: حد Firestore 500 عملية و ~10MB لكل دفعة
+    const commits=[];
+    let batch=dbFS.batch(), ops=0, bytes=0;
+    const flush=()=>{ if(ops){ commits.push(batch.commit()); batch=dbFS.batch(); ops=0; bytes=0; } };
+    const add=(ref,data)=>{
+      const sz=JSON.stringify(data).length;
+      if(ops>=400 || (bytes+sz)>8000000) flush();
+      batch.set(ref,data); ops++; bytes+=sz;
+    };
+    const col = dbFS.collection('clinics').doc(currentUserUid).collection('patients');
+    for(const p of PTS){ p._ts = ts; add(col.doc(String(p.id)), p); }
+    const apptCol = dbFS.collection('clinics').doc(currentUserUid).collection('appointments');
+    for(const [k,v] of Object.entries(xA)){
+      if(k.startsWith('_ts_')) continue;
+      add(apptCol.doc(k), {appts:v, _ts:ts});
+    }
+    flush();
+    await Promise.all(commits);
+    localStorage.removeItem('fb_pending_sync');
+    localStorage.setItem('fb_last_sync', new Date().toLocaleString('ar-IQ'));
+    updateSyncStatus('ok');
+  }catch(e){
+    localStorage.setItem('fb_pending_sync','1');
+    updateSyncStatus('error');
+    console.warn('FB write failed:', e.message);
+  }
 }
 
 // ===== مزامنة الإعدادات مع السحابة =====
